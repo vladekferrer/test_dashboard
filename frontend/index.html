@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TBS · Director Comercial</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --navy: #1a2744;
+      --navy-light: #243358;
+      --blue: #3b7dd8;
+      --blue-light: #e8f0fc;
+      --green: #0f6e56;
+      --green-light: #e4f5f0;
+      --amber: #d97706;
+      --amber-light: #fef3c7;
+      --red: #dc2626;
+      --red-light: #fee2e2;
+      --gray: #6b7280;
+      --gray-light: #f3f4f6;
+      --border: #e5e7eb;
+      --text: #111827;
+      --text-sec: #6b7280;
+      --white: #ffffff;
+      --radius: 10px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #f0f2f5; color: var(--text); font-size: 14px; }
+
+    /* ── Header ── */
+    .header {
+      background: var(--navy); color: white;
+      padding: 14px 24px; display: flex;
+      justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; letter-spacing: 0.3px; }
+    .header .meta { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .header .actions { display: flex; gap: 8px; align-items: center; }
+    .btn {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+      cursor: pointer; border: none; transition: all 0.15s;
+    }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:hover { background: #2d6bc4; }
+    .btn-ghost { background: rgba(255,255,255,0.1); color: white; }
+    .btn-ghost:hover { background: rgba(255,255,255,0.2); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Layout ── */
+    .main { max-width: 1400px; margin: 0 auto; padding: 20px 20px 40px; }
+    .section-title {
+      font-size: 11px; font-weight: 600; color: var(--text-sec);
+      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: white; border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 18px 0; font-size: 12px;
+      font-weight: 600; color: var(--text-sec); text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .card-body { padding: 16px 18px; }
+
+    /* ── KPI Grid ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 20px;
+    }
+    .kpi-card {
+      background: white; border-radius: var(--radius);
+      padding: 16px 18px; box-shadow: var(--shadow);
+    }
+    .kpi-label { font-size: 11px; color: var(--text-sec); font-weight: 500;
+                 text-transform: uppercase; letter-spacing: 0.4px; }
+    .kpi-value { font-size: 26px; font-weight: 600; margin: 6px 0 4px;
+                 line-height: 1; }
+    .kpi-delta { font-size: 12px; display: flex; align-items: center; gap: 4px; }
+    .kpi-delta.up { color: var(--green); }
+    .kpi-delta.down { color: var(--red); }
+    .kpi-delta.warn { color: var(--amber); }
+    .kpi-delta.neutral { color: var(--text-sec); }
+    .kpi-red .kpi-value { color: var(--red); }
+    .kpi-amber .kpi-value { color: var(--amber); }
+    .kpi-green .kpi-value { color: var(--green); }
+
+    /* ── Insight Banner ── */
+    .insight-banner {
+      background: var(--blue-light); border-left: 4px solid var(--blue);
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+    }
+    .insight-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px;
+    }
+    .insight-badge {
+      font-size: 11px; font-weight: 600; color: var(--blue);
+      text-transform: uppercase; letter-spacing: 0.5px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .insight-badge::before { content: "✦"; }
+    .insight-fecha { font-size: 11px; color: var(--text-sec); }
+    .insight-body {
+      font-size: 13.5px; line-height: 1.65; color: #1e3a5f;
+      white-space: pre-wrap;
+    }
+    .insight-body strong { font-weight: 600; }
+
+    /* ── Grid 2 columnas ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    /* ── Sección ── */
+    .section { margin-bottom: 20px; }
+
+    /* ── Tabla ── */
+    .tabla-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      background: var(--navy); color: white; padding: 10px 12px;
+      text-align: left; font-weight: 500; font-size: 11px;
+      letter-spacing: 0.3px; white-space: nowrap;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border);
+         white-space: nowrap; }
+    tr:hover td { background: var(--gray-light); }
+    tr:last-child td { border-bottom: none; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+
+    /* ── Semáforo ── */
+    .tag {
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .tag-sano    { background: var(--green-light); color: var(--green); }
+    .tag-atencion { background: var(--amber-light); color: var(--amber); }
+    .tag-critico  { background: var(--red-light); color: var(--red); }
+    .tag-rojo     { background: var(--red-light); color: var(--red); }
+    .tag-amarillo { background: var(--amber-light); color: var(--amber); }
+    .tag-verde    { background: var(--green-light); color: var(--green); }
+
+    /* ── Alertas ── */
+    .alerta-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 11px 14px; border-radius: 8px; margin-bottom: 8px;
+    }
+    .alerta-roja    { background: var(--red-light); border-left: 3px solid var(--red); }
+    .alerta-amarilla { background: var(--amber-light); border-left: 3px solid var(--amber); }
+    .alerta-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+    .dot-rojo    { background: var(--red); }
+    .dot-amarillo { background: var(--amber); }
+    .alerta-texto { font-size: 13px; line-height: 1.4; }
+    .alerta-cliente { font-weight: 600; }
+    .alerta-desc { color: var(--text-sec); font-size: 12px; margin-top: 2px; }
+
+    /* ── Aging buckets ── */
+    .aging-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 10px; margin-bottom: 16px;
+    }
+    .aging-bucket {
+      border-radius: 8px; padding: 12px 14px; text-align: center;
+    }
+    .aging-label { font-size: 11px; font-weight: 600; text-transform: uppercase;
+                   letter-spacing: 0.3px; margin-bottom: 6px; }
+    .aging-value { font-size: 18px; font-weight: 600; }
+    .aging-sub   { font-size: 11px; margin-top: 3px; }
+    .aging-ok   { background: var(--green-light); color: var(--green); }
+    .aging-warn { background: var(--amber-light); color: var(--amber); }
+    .aging-bad  { background: var(--red-light); color: var(--red); }
+
+    /* ── Chat ── */
+    .chat-wrap { display: flex; flex-direction: column; height: 100%; min-height: 300px; }
+    .chat-messages {
+      flex: 1; overflow-y: auto; padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 280px; min-height: 200px;
+    }
+    .msg { max-width: 85%; padding: 10px 13px; border-radius: 10px;
+           font-size: 13px; line-height: 1.5; }
+    .msg-user { background: var(--blue); color: white;
+                align-self: flex-end; border-bottom-right-radius: 3px; }
+    .msg-bot  { background: var(--gray-light); color: var(--text);
+                align-self: flex-start; border-bottom-left-radius: 3px; }
+    .msg-thinking { color: var(--text-sec); font-style: italic; }
+    .chat-input-row {
+      display: flex; gap: 8px; padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+    .chat-input {
+      flex: 1; padding: 9px 13px; border: 1px solid var(--border);
+      border-radius: 8px; font-size: 13px; outline: none;
+      font-family: inherit;
+    }
+    .chat-input:focus { border-color: var(--blue); }
+
+    /* ── Barra de categorías ── */
+    .cat-bar-wrap { display: flex; flex-direction: column; gap: 8px; }
+    .cat-row { display: flex; align-items: center; gap: 10px; }
+    .cat-label { width: 110px; font-size: 12px; color: var(--text); flex-shrink: 0;
+                 text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
+    .cat-bar-bg { flex: 1; background: var(--gray-light); border-radius: 4px; height: 20px;
+                  position: relative; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 4px;
+                    background: var(--blue); transition: width 0.8s ease; }
+    .cat-value { width: 70px; text-align: right; font-size: 12px;
+                 color: var(--text-sec); flex-shrink: 0; }
+    .cat-margen { width: 50px; text-align: right; font-size: 12px;
+                  color: var(--green); flex-shrink: 0; font-weight: 500; }
+
+    /* ── Chart container ── */
+    .chart-container { position: relative; width: 100%; }
+
+    /* ── Loading ── */
+    .loading { color: var(--text-sec); font-size: 13px; padding: 20px;
+               text-align: center; }
+    .pulse { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ── Utils ── */
+    .mt-16 { margin-top: 16px; }
+    .mb-16 { margin-bottom: 16px; }
+    .spacer { margin-bottom: 20px; }
+    .text-muted { color: var(--text-sec); font-size: 12px; }
+    .text-right { text-align: right; }
+    .bold { font-weight: 600; }
+
+    /* ── Trend arrow ── */
+    .trend-up   { color: var(--green); }
+    .trend-down { color: var(--red); }
+    .trend-flat { color: var(--text-sec); }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════ HEADER ════════════════ -->
+<header class="header">
+  <div>
+    <h1>TBS · Director Comercial</h1>
+    <div class="meta" id="headerMeta">Cargando datos...</div>
+  </div>
+  <div class="actions">
+    <button class="btn btn-ghost" onclick="recargarTodo()">↺ Actualizar</button>
+    <button class="btn btn-primary" id="btnInsight" onclick="regenerarInsight()">
+      ✦ Nuevo análisis IA
+    </button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ════ NORTH STAR ════ -->
+  <div class="section-title">North Star del mes</div>
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card"><div class="loading pulse">Cargando...</div></div>
+    <div class="kpi-card"><div class="loading pulse">Cargando...</div></div>
+    <div class="kpi-card"><div class="loading pulse">Cargando...</div></div>
+    <div class="kpi-card"><div class="loading pulse">Cargando...</div></div>
+    <div class="kpi-card"><div class="loading pulse">Cargando...</div></div>
+  </div>
+
+  <!-- ════ INSIGHT LLM ════ -->
+  <div class="insight-banner" id="insightBanner">
+    <div class="insight-header">
+      <div class="insight-badge">Análisis estratégico · IA</div>
+      <span class="insight-fecha" id="insightFecha"></span>
+    </div>
+    <div class="insight-body pulse" id="insightBody">Cargando análisis...</div>
+  </div>
+
+  <!-- ════ TENDENCIA + ALERTAS ════ -->
+  <div class="grid-3 section">
+    <div class="card">
+      <div class="card-header">Tendencia GMV · 12 meses</div>
+      <div class="card-body">
+        <div class="chart-container" style="height:220px">
+          <canvas id="chartGmv"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Alertas operativas</div>
+      <div class="card-body" id="alertasPanel">
+        <div class="loading pulse">Cargando...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ CLIENTES TOP ════ -->
+  <div class="card section">
+    <div class="card-header" style="padding:14px 18px 0">
+      Densificación de cabeceras · top 30
+      <span class="text-muted" style="margin-left:8px; font-weight:400; text-transform:none;">
+        Haz clic en una fila para ver el detalle
+      </span>
+    </div>
+    <div class="card-body" style="padding:12px 0 0">
+      <div class="tabla-wrap">
+        <table id="tablaClientes">
+          <thead>
+            <tr>
+              <th>#</th><th>Cliente</th><th class="right">GMV/mes</th>
+              <th class="right">GMV mes actual</th><th class="right">Variación</th>
+              <th class="right">Frecuencia</th><th class="right">Sin pedido</th>
+              <th class="right">Cartera vencida</th><th class="center">Estado</th>
+            </tr>
+          </thead>
+          <tbody id="clientesBody">
+            <tr><td colspan="9" class="loading pulse" style="text-align:center">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ VENDEDORES + CARTERA ════ -->
+  <div class="grid-2 section">
+    <div class="card">
+      <div class="card-header">Productividad por vendedor</div>
+      <div class="card-body" style="padding-bottom:0">
+        <div class="chart-container" style="height:200px">
+          <canvas id="chartVendedores"></canvas>
+        </div>
+        <div class="tabla-wrap mt-16">
+          <table id="tablaVendedores">
+            <thead>
+              <tr>
+                <th>Vendedor</th><th class="right">GMV mes</th>
+                <th class="right">Cuentas</th><th class="right">Órd/cta</th>
+                <th class="right">Margen</th><th class="center">Estado</th>
+              </tr>
+            </thead>
+            <tbody id="vendedoresBody">
+              <tr><td colspan="6" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Cartera por aging</div>
+      <div class="card-body">
+        <div class="aging-grid" id="agingGrid">
+          <div class="loading pulse center">Cargando...</div>
+        </div>
+        <div class="section-title mt-16">Top deudores</div>
+        <div class="tabla-wrap">
+          <table id="tablaDeudores">
+            <thead>
+              <tr>
+                <th>Cliente</th><th class="right">Saldo</th>
+                <th class="right">Días máx.</th><th class="right">Facturas</th>
+              </tr>
+            </thead>
+            <tbody id="deudoresBody">
+              <tr><td colspan="4" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ CATEGORÍAS + CHAT ════ -->
+  <div class="grid-2 section">
+    <div class="card">
+      <div class="card-header">Mix de portafolio · GMV y margen</div>
+      <div class="card-body">
+        <div class="cat-bar-wrap" id="categoriasWrap">
+          <div class="loading pulse">Cargando...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Analista IA · consulta libre</div>
+      <div class="chat-wrap">
+        <div class="chat-messages" id="chatMessages">
+          <div class="msg msg-bot">
+            Hola. Soy el analista de TBS. Puedes preguntarme sobre clientes,
+            vendedores, cartera o estrategia. Por ejemplo:
+            <em>"¿Qué clientes no compraron esta semana?"</em> o
+            <em>"¿Cómo está la cartera de Hotel Caribe?"</em>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text"
+                 placeholder="Escribe tu pregunta..."
+                 onkeydown="if(event.key==='Enter') enviarChat()"/>
+          <button class="btn btn-primary" onclick="enviarChat()">Enviar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  const API = '';
+  let chartGmv = null;
+  let chartVend = null;
+  let chatHistorial = [];
+
+  // ════════════════════════════════════════════
+  // Utilidades
+  // ════════════════════════════════════════════
+  const fmt = (n) => n == null ? '—' :
+    new Intl.NumberFormat('es-CO', {style:'currency', currency:'COP',
+    maximumFractionDigits:0}).format(n);
+  const fmtM = (n) => n == null ? '—' : fmt(n/1e6).replace('COP','$') + 'M';
+  const pct = (n) => n == null ? '—' : (n > 0 ? '+' : '') + Number(n).toFixed(1) + '%';
+  const trend = (v) => v == null ? '→' : v > 5 ? '↑' : v < -5 ? '↓' : '→';
+  const trendClass = (v) => v == null ? 'trend-flat' : v > 5 ? 'trend-up' : v < -5 ? 'trend-down' : 'trend-flat';
+
+  async function fetchJSON(url) {
+    const r = await fetch(API + url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+
+  // ════════════════════════════════════════════
+  // North Star
+  // ════════════════════════════════════════════
+  async function cargarNorthStar() {
+    const d = await fetchJSON('/api/north-star');
+    const colorCartera = d.pct_cartera_vencida > 12 ? 'kpi-red'
+                       : d.pct_cartera_vencida > 8  ? 'kpi-amber' : 'kpi-green';
+    const colorDias    = d.dias_cobro_promedio > 55 ? 'kpi-red'
+                       : d.dias_cobro_promedio > 45 ? 'kpi-amber' : '';
+
+    const kpis = [
+      { label: `GMV mayo · día ${d.dia_del_mes}`,
+        value: fmtM(d.gmv_neto_actual),
+        delta: `Proyección mes: ${fmtM(d.gmv_proyectado_mes)} · ${d.avance_pct_proyeccion}% del mes`,
+        cls: d.avance_pct_proyeccion >= 35 ? 'up' : d.avance_pct_proyeccion >= 20 ? 'neutral' : 'warn' },
+      { label: "Variación GMV",
+        value: pct(d.variacion_vs_mismo_periodo),
+        delta: `vs mismo período abril: ${pct(d.variacion_vs_mismo_periodo)}`,
+        cls: d.variacion_vs_mismo_periodo >= 0 ? 'up' : 'down' },
+      { label: 'Margen bruto', value: (d.margen_bruto_pct ?? 0) + '%',
+        delta: d.margen_bruto_pct >= 20 ? 'Rango sano' : 'Bajo rango objetivo',
+        cls: d.margen_bruto_pct >= 20 ? 'up':'warn', extraCls: '' },
+      { label: 'Cartera vencida >30d', value: (d.pct_cartera_vencida ?? 0) + '%',
+        delta: d.pct_cartera_vencida > 12 ? '⚠ Sobre umbral 12%'
+             : d.pct_cartera_vencida > 8 ? 'Atención: sobre 8%' : 'Dentro del rango',
+        cls: d.pct_cartera_vencida > 12 ? 'down' : d.pct_cartera_vencida > 8 ? 'warn' : 'up',
+        extraCls: colorCartera },
+      { label: 'Días prom. cobro', value: (d.dias_cobro_promedio ?? 0),
+        delta: d.dias_cobro_promedio > 55 ? '⚠ Sobre umbral 55d'
+             : d.dias_cobro_promedio > 45 ? 'Atención: sobre 45d' : 'Dentro del rango',
+        cls: d.dias_cobro_promedio > 55 ? 'down' : d.dias_cobro_promedio > 45 ? 'warn' : 'up',
+        extraCls: colorDias },
+    ];
+
+    document.getElementById('kpiGrid').innerHTML = kpis.map(k => `
+      <div class="kpi-card ${k.extraCls||''}">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-value">${k.value}</div>
+        <div class="kpi-delta ${k.cls}">${k.delta}</div>
+      </div>`).join('');
+
+    document.getElementById('headerMeta').textContent =
+      `Cartagena · Datos al ${new Date().toLocaleDateString('es-CO',
+       {day:'numeric',month:'long',year:'numeric'})}`;
+  }
+
+  // ════════════════════════════════════════════
+  // Tendencia GMV
+  // ════════════════════════════════════════════
+  async function cargarTendencia() {
+    const d = await fetchJSON('/api/tendencia-mensual');
+    const meses = d.meses || [];
+    const labels = meses.map(m => {
+      const [y, mo] = m.mes.split('-');
+      const nombres = ['','Ene','Feb','Mar','Abr','May','Jun',
+                       'Jul','Ago','Sep','Oct','Nov','Dic'];
+      return nombres[parseInt(mo)] + ' ' + y.slice(2);
+    });
+    const valores = meses.map(m => Math.round((m.gmv_neto||0)/1e6));
+    const meta = meses.map(() => 180);
+
+    const ctx = document.getElementById('chartGmv').getContext('2d');
+    if (chartGmv) chartGmv.destroy();
+    chartGmv = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'GMV neto ($M)', data: valores,
+            backgroundColor: valores.map(v =>
+              v >= 180 ? 'rgba(15,110,86,0.7)' :
+              v >= 140 ? 'rgba(59,125,216,0.7)' : 'rgba(220,38,38,0.7)'),
+            borderRadius: 4, order: 2 },
+          { label: 'Meta $180M', data: meta, type: 'line',
+            borderColor: '#d97706', borderDash: [5,4], pointRadius: 0,
+            borderWidth: 1.5, fill: false, order: 1 },
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position:'top', align:'end',
+          labels:{ font:{size:11}, boxWidth:12 } },
+          tooltip: { callbacks: { label: c => `$${c.parsed.y}M` } }
+        },
+        scales: {
+          y: { beginAtZero: true,
+               ticks: { callback: v => '$' + v + 'M', font:{size:11} },
+               grid: { color:'rgba(0,0,0,0.05)' } },
+          x: { ticks: { font:{size:10} }, grid:{ display:false } }
+        }
+      }
+    });
+  }
+
+  // ════════════════════════════════════════════
+  // Alertas
+  // ════════════════════════════════════════════
+  async function cargarAlertas() {
+    const d = await fetchJSON('/api/alertas');
+    const panel = document.getElementById('alertasPanel');
+    const todas = [
+      ...(d.rojas||[]).map(a => ({...a, color:'roja'})),
+      ...(d.amarillas||[]).map(a => ({...a, color:'amarilla'})),
+    ].slice(0, 8);
+
+    if (!todas.length) {
+      panel.innerHTML = '<div style="color:var(--green);padding:12px 0">✓ Sin alertas activas</div>';
+      return;
+    }
+    panel.innerHTML = todas.map(a => `
+      <div class="alerta-item alerta-${a.color}">
+        <div class="alerta-dot dot-${a.color === 'roja' ? 'rojo' : 'amarillo'}"></div>
+        <div class="alerta-texto">
+          <div class="alerta-cliente">${a.cliente}</div>
+          <div class="alerta-desc">${a.descripcion_alerta}</div>
+        </div>
+      </div>`).join('');
+  }
+
+  // ════════════════════════════════════════════
+  // Clientes top
+  // ════════════════════════════════════════════
+  async function cargarClientes() {
+    const d = await fetchJSON('/api/clientes-top?limite=30');
+    const clientes = d.clientes || [];
+    document.getElementById('clientesBody').innerHTML = clientes.map(c => `
+      <tr onclick="verCliente(${c.id_cliente})" style="cursor:pointer">
+        <td>${c.ranking}</td>
+        <td class="bold">${c.nombre}</td>
+        <td class="right">${fmtM(c.gmv_mensual_prom)}</td>
+        <td class="right">${fmtM(c.gmv_mes_actual)}</td>
+        <td class="right ${trendClass(c.variacion_pct)}">
+          ${trend(c.variacion_pct)} ${pct(c.variacion_pct)}
+        </td>
+        <td class="right">${c.frecuencia_mensual ?? '—'}×/mes</td>
+        <td class="right ${c.dias_sin_pedido > 21 ? 'trend-down bold' : ''}">
+          ${c.dias_sin_pedido ?? '—'} días
+        </td>
+        <td class="right">${c.cartera_vencida > 0 ? fmtM(c.cartera_vencida) : '—'}</td>
+        <td class="center">
+          <span class="tag tag-${c.estado}">${c.estado}</span>
+        </td>
+      </tr>`).join('');
+  }
+
+  function verCliente(id) {
+    window.open(`/api/clientes-top/${id}`, '_blank');
+  }
+
+  // ════════════════════════════════════════════
+  // Vendedores
+  // ════════════════════════════════════════════
+  async function cargarVendedores() {
+    const d = await fetchJSON('/api/vendedores');
+    const vends = (d.vendedores || []).filter(v => v.gmv_anual > 0);
+
+    const ctx = document.getElementById('chartVendedores').getContext('2d');
+    if (chartVend) chartVend.destroy();
+    chartVend = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: vends.map(v => v.nombre.split(' ')[0]),
+        datasets: [{
+          label: 'GMV mes ($M)',
+          data: vends.map(v => Math.round((v.gmv_mes_actual||0)/1e6)),
+          backgroundColor: vends.map(v =>
+            v.estado === 'vacante' ? '#fca5a5' :
+            v.nombre.includes('Zoraida') ? '#3b7dd8' : '#93c5fd'),
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display:false },
+          tooltip: { callbacks: { label: c => '$' + c.parsed.y + 'M' } } },
+        scales: {
+          y: { beginAtZero: true,
+               ticks: { callback: v => '$' + v + 'M', font:{size:10} },
+               grid: { color:'rgba(0,0,0,0.05)' } },
+          x: { ticks:{ font:{size:10} }, grid:{ display:false } }
+        }
+      }
+    });
+
+    document.getElementById('vendedoresBody').innerHTML = vends.map(v => `
+      <tr>
+        <td class="bold">${v.nombre}</td>
+        <td class="right">${fmtM(v.gmv_mes_actual)}</td>
+        <td class="right">${v.clientes_unicos}</td>
+        <td class="right">${v.ordenes_por_cliente ?? '—'}</td>
+        <td class="right">${v.margen_pct != null ? v.margen_pct + '%' : '—'}</td>
+        <td class="center">
+          <span class="tag tag-${v.estado === 'activo' ? 'sano' :
+            v.estado === 'vacante' ? 'critico' : 'atencion'}">${v.estado}</span>
+        </td>
+      </tr>`).join('');
+  }
+
+  // ════════════════════════════════════════════
+  // Cartera aging
+  // ════════════════════════════════════════════
+  async function cargarCartera() {
+    const d = await fetchJSON('/api/cartera-aging');
+    const buckets = d.resumen_aging || [];
+    const colorMap = {
+      '0-30 dias':'aging-ok', '31-45 dias':'aging-warn',
+      '46-60 dias':'aging-warn', '61-90 dias':'aging-bad', '+90 dias':'aging-bad'
+    };
+    document.getElementById('agingGrid').innerHTML = buckets.map(b => `
+      <div class="aging-bucket ${colorMap[b.bucket_aging]||'aging-warn'}">
+        <div class="aging-label">${b.bucket_aging}</div>
+        <div class="aging-value">${fmtM(b.total)}</div>
+        <div class="aging-sub">${b.clientes} clientes · ${b.facturas} fact.</div>
+      </div>`).join('');
+
+    document.getElementById('deudoresBody').innerHTML =
+      (d.top_deudores||[]).slice(0,6).map(d => `
+        <tr>
+          <td>${d.cliente.length > 35 ? d.cliente.slice(0,35)+'…' : d.cliente}</td>
+          <td class="right bold">${fmtM(d.total_adeudado)}</td>
+          <td class="right ${d.max_dias_vencido > 60 ? 'trend-down bold' : ''}">${d.max_dias_vencido}d</td>
+          <td class="right">${d.facturas_pendientes}</td>
+        </tr>`).join('');
+  }
+
+  // ════════════════════════════════════════════
+  // Categorías
+  // ════════════════════════════════════════════
+  async function cargarCategorias() {
+    const d = await fetchJSON('/api/categorias');
+    const cats = d.categorias || [];
+    const maxGmv = Math.max(...cats.map(c => c.gmv_neto || 0));
+    document.getElementById('categoriasWrap').innerHTML = cats.map(c => `
+      <div class="cat-row">
+        <div class="cat-label" title="${c.categoria}">${c.categoria}</div>
+        <div class="cat-bar-bg">
+          <div class="cat-bar-fill"
+               style="width:${maxGmv > 0 ? (c.gmv_neto/maxGmv*100).toFixed(1) : 0}%">
+          </div>
+        </div>
+        <div class="cat-value">${fmtM(c.gmv_neto)}</div>
+        <div class="cat-margen">${c.margen_pct != null ? c.margen_pct + '%' : '—'}</div>
+      </div>`).join('');
+  }
+
+  // ════════════════════════════════════════════
+  // Insight LLM
+  // ════════════════════════════════════════════
+  async function cargarInsight() {
+    const d = await fetchJSON('/api/insights');
+    document.getElementById('insightBody').classList.remove('pulse');
+    document.getElementById('insightBody').innerHTML =
+      (d.contenido || 'Sin insight disponible.')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    if (d.fecha) {
+      document.getElementById('insightFecha').textContent =
+        'Generado: ' + new Date(d.fecha).toLocaleString('es-CO',
+          {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+    }
+  }
+
+  async function regenerarInsight() {
+    const btn = document.getElementById('btnInsight');
+    btn.disabled = true;
+    btn.textContent = '⏳ Analizando...';
+    document.getElementById('insightBody').innerHTML =
+      '<span class="pulse">El analista está revisando los datos de TBS...</span>';
+    try {
+      const r = await fetch(API + '/api/insights/regenerar', { method:'POST' });
+      const d = await r.json();
+      document.getElementById('insightBody').innerHTML =
+        (d.contenido || '').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      document.getElementById('insightFecha').textContent =
+        'Generado ahora · ' + new Date().toLocaleTimeString('es-CO',
+          {hour:'2-digit', minute:'2-digit'});
+    } catch(e) {
+      document.getElementById('insightBody').textContent =
+        'Error generando análisis. Verifica la API key de Anthropic en .env';
+    }
+    btn.disabled = false;
+    btn.textContent = '✦ Nuevo análisis IA';
+  }
+
+  // ════════════════════════════════════════════
+  // Chat
+  // ════════════════════════════════════════════
+  async function enviarChat() {
+    const input = document.getElementById('chatInput');
+    const pregunta = input.value.trim();
+    if (!pregunta) return;
+
+    input.value = '';
+    const msgs = document.getElementById('chatMessages');
+    msgs.innerHTML += `<div class="msg msg-user">${pregunta}</div>`;
+    msgs.innerHTML += `<div class="msg msg-bot msg-thinking pulse" id="thinkingMsg">✦ Analizando...</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+
+    chatHistorial.push({ rol: 'user', contenido: pregunta });
+
+    try {
+      const r = await fetch(API + '/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pregunta, historial: chatHistorial.slice(-6) }),
+      });
+      const d = await r.json();
+      const respuesta = d.respuesta || 'Sin respuesta.';
+      chatHistorial.push({ rol: 'assistant', contenido: respuesta });
+
+      document.getElementById('thinkingMsg')?.remove();
+      msgs.innerHTML += `<div class="msg msg-bot">${
+        respuesta.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</div>`;
+    } catch {
+      document.getElementById('thinkingMsg')?.remove();
+      msgs.innerHTML += `<div class="msg msg-bot">Error conectando con el analista.</div>`;
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  // ════════════════════════════════════════════
+  // Carga total
+  // ════════════════════════════════════════════
+  async function recargarTodo() {
+    await Promise.allSettled([
+      cargarNorthStar(),
+      cargarTendencia(),
+      cargarAlertas(),
+      cargarClientes(),
+      cargarVendedores(),
+      cargarCartera(),
+      cargarCategorias(),
+      cargarInsight(),
+    ]);
+  }
+
+  // Cargar al iniciar
+  recargarTodo();
+
+  // Auto-refresh cada 4 horas
+  setInterval(recargarTodo, 4 * 60 * 60 * 1000);
+</script>
+</body>
+</html>
