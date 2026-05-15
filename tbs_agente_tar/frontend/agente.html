@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TBS · Supervisor de Ventas</title>
+  <style>
+    :root {
+      --navy: #1a2744; --blue: #3b7dd8; --blue-light: #e8f0fc;
+      --green: #0f6e56; --green-light: #e4f5f0;
+      --amber: #d97706; --amber-light: #fef3c7;
+      --red: #dc2626; --red-light: #fee2e2;
+      --gray: #6b7280; --gray-light: #f3f4f6;
+      --border: #e5e7eb; --text: #111827; --white: #fff;
+      --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: #f0f2f5; color: var(--text); font-size: 14px; }
+
+    .header {
+      background: var(--navy); color: white;
+      padding: 14px 24px; display: flex;
+      justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header h1 { font-size: 16px; font-weight: 600; }
+    .header .sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+    .nav-link { color: #94a3b8; font-size: 12px; text-decoration: none; }
+    .nav-link:hover { color: white; }
+
+    .main { max-width: 1400px; margin: 0 auto; padding: 20px 20px 60px; }
+
+    .sec-title {
+      font-size: 11px; font-weight: 600; color: var(--gray);
+      text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px;
+    }
+    .section { margin-bottom: 20px; }
+
+    .btn {
+      padding: 7px 14px; border-radius: 6px; font-size: 12px;
+      font-weight: 500; cursor: pointer; border: none; transition: all .15s;
+    }
+    .btn-primary { background: var(--blue); color: white; }
+    .btn-primary:hover { background: #2d6bc4; }
+    .btn-ghost { background: rgba(255,255,255,.1); color: white; }
+    .btn-sm { padding: 4px 10px; font-size: 11px; }
+    .btn-green { background: var(--green-light); color: var(--green); }
+    .btn-red { background: var(--red-light); color: var(--red); }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .card {
+      background: white; border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .card-head { padding: 14px 18px 0; font-size: 12px; font-weight: 600;
+                 color: var(--gray); text-transform: uppercase; letter-spacing: .5px; }
+    .card-body { padding: 16px 18px; }
+
+    /* Vendor scorecards */
+    .vendor-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px; margin-bottom: 20px;
+    }
+    .vendor-card {
+      background: white; border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .vendor-head {
+      padding: 12px 16px; display: flex;
+      justify-content: space-between; align-items: center;
+    }
+    .vendor-name { font-weight: 600; font-size: 13px; }
+    .vendor-sub  { font-size: 11px; color: var(--gray); margin-top: 2px; }
+    .semaforo {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+    }
+    .sem-verde    { background: var(--green); }
+    .sem-amarillo { background: var(--amber); }
+    .sem-rojo     { background: var(--red);   }
+
+    .kpi-row {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 8px; padding: 0 16px 14px;
+    }
+    .kpi-mini { }
+    .kpi-mini-label { font-size: 10px; color: var(--gray); text-transform: uppercase; }
+    .kpi-mini-value { font-size: 18px; font-weight: 600; line-height: 1.2; }
+    .kpi-mini-bar {
+      height: 4px; background: var(--gray-light);
+      border-radius: 2px; margin-top: 4px; overflow: hidden;
+    }
+    .kpi-mini-fill {
+      height: 100%; border-radius: 2px; transition: width .6s;
+    }
+    .fill-ok   { background: var(--green); }
+    .fill-warn { background: var(--amber); }
+    .fill-bad  { background: var(--red);   }
+
+    .vendor-msg-btn {
+      width: 100%; padding: 8px 16px; background: var(--gray-light);
+      border: none; cursor: pointer; font-size: 12px; color: var(--gray);
+      text-align: left; transition: background .15s; border-top: 1px solid var(--border);
+    }
+    .vendor-msg-btn:hover { background: var(--blue-light); color: var(--blue); }
+
+    /* Briefing */
+    .briefing-box {
+      background: var(--blue-light); border-left: 4px solid var(--blue);
+      border-radius: var(--radius); padding: 16px 20px; margin-bottom: 20px;
+    }
+    .briefing-head {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 10px;
+    }
+    .briefing-badge {
+      font-size: 11px; font-weight: 600; color: var(--blue);
+      text-transform: uppercase; letter-spacing: .5px;
+    }
+    .briefing-body { font-size: 13.5px; line-height: 1.7;
+                     color: #1e3a5f; white-space: pre-wrap; }
+    .briefing-body strong { font-weight: 600; }
+
+    /* Tablas */
+    .tabla-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: var(--navy); color: white; padding: 9px 12px;
+         text-align: left; font-weight: 500; font-size: 11px;
+         letter-spacing: .3px; white-space: nowrap; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    tr:hover td { background: var(--gray-light); }
+    tr:last-child td { border-bottom: none; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+
+    .tag {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .tag-verde    { background: var(--green-light); color: var(--green); }
+    .tag-amarillo { background: var(--amber-light); color: var(--amber); }
+    .tag-rojo     { background: var(--red-light); color: var(--red); }
+
+    /* Modal de mensaje WhatsApp */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.5); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: white; border-radius: var(--radius);
+      padding: 24px; max-width: 480px; width: 90%; position: relative;
+    }
+    .modal h3 { margin-bottom: 12px; font-size: 15px; }
+    .msg-whatsapp {
+      background: #e7fcd5; border-radius: 10px;
+      padding: 14px 16px; font-size: 13.5px; line-height: 1.6;
+      margin-bottom: 14px; white-space: pre-wrap;
+    }
+    .modal-close {
+      position: absolute; top: 12px; right: 16px;
+      background: none; border: none; font-size: 20px;
+      cursor: pointer; color: var(--gray);
+    }
+
+    /* Formulario de visita */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-field { display: flex; flex-direction: column; gap: 4px; }
+    .form-field.full { grid-column: 1 / -1; }
+    label { font-size: 12px; color: var(--gray); font-weight: 500; }
+    input, select, textarea {
+      padding: 8px 10px; border: 1px solid var(--border);
+      border-radius: 6px; font-size: 13px; font-family: inherit;
+    }
+    textarea { resize: vertical; min-height: 60px; }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--blue);
+    }
+
+    /* Grid 2 col */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* Chat */
+    .chat-msgs { max-height: 260px; overflow-y: auto;
+                 padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .msg { max-width: 85%; padding: 9px 12px; border-radius: 10px;
+           font-size: 13px; line-height: 1.5; }
+    .msg-user { background: var(--blue); color: white;
+                align-self: flex-end; }
+    .msg-bot  { background: var(--gray-light);
+                align-self: flex-start; }
+    .chat-input-row { display: flex; gap: 8px; padding: 10px;
+                      border-top: 1px solid var(--border); }
+    .chat-input { flex: 1; padding: 8px 12px;
+                  border: 1px solid var(--border);
+                  border-radius: 8px; font-size: 13px; }
+    .chat-input:focus { outline: none; border-color: var(--blue); }
+
+    .loading { color: var(--gray); font-size: 13px; padding: 16px;
+               text-align: center; }
+    .pulse { animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .mt-16 { margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <div>
+    <h1>TBS · Supervisor de Ventas</h1>
+    <div class="sub" id="headerFecha">Cargando...</div>
+  </div>
+  <div style="display:flex;gap:12px;align-items:center">
+    <a href="/" class="nav-link">← Dashboard director</a>
+    <button class="btn btn-ghost" onclick="recargar()">↺ Actualizar</button>
+    <button class="btn btn-primary" id="btnBriefing"
+            onclick="regenerarBriefing()">✦ Nuevo briefing</button>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- ════ BRIEFING ════ -->
+  <div class="briefing-box" id="briefingBox">
+    <div class="briefing-head">
+      <div class="briefing-badge">✦ Briefing del supervisor · IA</div>
+      <span style="font-size:11px;color:#4a7ab5" id="briefingFecha"></span>
+    </div>
+    <div class="briefing-body pulse" id="briefingBody">Cargando briefing...</div>
+  </div>
+
+  <!-- ════ SCORECARDS DE VENDEDORES ════ -->
+  <div class="sec-title">Estado del equipo · mes actual vs cuota</div>
+  <div class="vendor-grid" id="vendorGrid">
+    <div class="card" style="padding:20px">
+      <div class="loading pulse">Cargando...</div>
+    </div>
+  </div>
+
+  <!-- ════ CUENTAS EN RIESGO + COMPROMISOS ════ -->
+  <div class="grid-2 section">
+    <div class="card">
+      <div class="card-head">Cuentas en riesgo · sin pedido >14 días</div>
+      <div class="card-body" style="padding-top:10px">
+        <div class="tabla-wrap">
+          <table id="tablaRiesgo">
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Vendedor</th>
+                <th class="right">Sin pedido</th>
+                <th class="right">GMV/mes</th>
+              </tr>
+            </thead>
+            <tbody id="riesgoBody">
+              <tr><td colspan="4" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">Compromisos pendientes</div>
+      <div class="card-body" style="padding-top:10px">
+        <div class="tabla-wrap">
+          <table id="tablaCompromisos">
+            <thead>
+              <tr>
+                <th>Vendedor</th><th>Cliente</th>
+                <th>Compromiso</th><th class="right">Días</th>
+                <th class="center">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="compromisosBody">
+              <tr><td colspan="5" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <button class="btn btn-primary btn-sm"
+                style="margin-top:12px"
+                onclick="abrirModalCompromiso()">
+          + Nuevo compromiso
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ PORTAFOLIO + MARCAS ════ -->
+  <div class="grid-2 section">
+    <div class="card">
+      <div class="card-head">Profundidad de portafolio · top 20 cuentas</div>
+      <div class="card-body" style="padding-top:10px">
+        <div class="tabla-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th><th>Vendedor</th>
+                <th class="right">Cobertura</th><th>Falta</th>
+              </tr>
+            </thead>
+            <tbody id="portafolioBody">
+              <tr><td colspan="4" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">Codificación marcas estratégicas</div>
+      <div class="card-body" style="padding-top:10px">
+        <div class="tabla-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th><th class="right">Cobertura</th>
+                <th>Falta codificar</th>
+              </tr>
+            </thead>
+            <tbody id="marcasBody">
+              <tr><td colspan="3" class="loading pulse center">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ REGISTRO DE VISITAS + CHAT ════ -->
+  <div class="grid-2 section">
+    <div class="card">
+      <div class="card-head">Registrar visita</div>
+      <div class="card-body">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>Vendedor</label>
+            <select id="fVendedor">
+              <option value="">Seleccionar...</option>
+              <option>ZORAIDA MARIA HERNANDEZ ALVARADO</option>
+              <option>RONALD RUDAS SEÑA</option>
+              <option>OFICINA CARTAGENA TBS</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>Tipo</label>
+            <select id="fTipo">
+              <option value="presencial">Presencial</option>
+              <option value="llamada">Llamada</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+          </div>
+          <div class="form-field full">
+            <label>Cliente (nombre)</label>
+            <input id="fCliente" type="text"
+                   placeholder="Buscar cliente..."
+                   oninput="buscarCliente(this.value)"/>
+            <div id="clienteSugs" style="display:none; background:white;
+                 border:1px solid var(--border); border-radius:6px;
+                 max-height:150px; overflow-y:auto; position:relative; z-index:10">
+            </div>
+          </div>
+          <div class="form-field full">
+            <label>Resultado de la visita</label>
+            <textarea id="fResultado"
+                      placeholder="¿Qué pasó? ¿Hizo pedido?"></textarea>
+          </div>
+          <div class="form-field full">
+            <label>Compromiso (si aplica)</label>
+            <input id="fCompromiso" type="text"
+                   placeholder="Ej: Enviar propuesta de espumantes el jueves"/>
+          </div>
+          <div class="form-field">
+            <label>Monto pedido ($)</label>
+            <input id="fMonto" type="number" placeholder="0"/>
+          </div>
+          <div class="form-field"
+               style="align-self:flex-end">
+            <button class="btn btn-primary"
+                    onclick="registrarVisita()">Guardar visita</button>
+          </div>
+        </div>
+
+        <div class="mt-16">
+          <div class="sec-title" style="margin-bottom:8px">
+            Visitas esta semana
+          </div>
+          <div class="tabla-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Vendedor</th><th>Cliente</th>
+                  <th>Tipo</th><th>Monto</th>
+                </tr>
+              </thead>
+              <tbody id="visitasBody">
+                <tr><td colspan="4" class="loading pulse center">
+                  Cargando...
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head">Chat con el supervisor · IA</div>
+      <div style="display:flex;flex-direction:column;height:100%;min-height:300px">
+        <div class="chat-msgs" id="chatMsgs">
+          <div class="msg msg-bot">
+            Soy el supervisor del equipo TBS. Puedes preguntarme:
+            <em>"¿Quién está más rezagado en cuota?"</em>,
+            <em>"¿Cuáles cuentas de Ronald llevan más de 2 semanas?"</em>
+            o <em>"¿Qué marcas le faltan al Hotel Caribe?"</em>
+          </div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" id="chatInput" type="text"
+                 placeholder="Pregunta sobre el equipo..."
+                 onkeydown="if(event.key==='Enter') enviarChat()"/>
+          <button class="btn btn-primary" onclick="enviarChat()">Enviar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ════ ANÁLISIS ESTRATÉGICO ════ -->
+  <div class="section">
+    <div class="sec-title">Estado del plan estratégico · 6 objetivos</div>
+
+    <!-- Tarjetas de objetivos -->
+    <div id="objetivosGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:20px">
+      <div class="card" style="padding:16px"><div class="loading pulse">Cargando objetivos...</div></div>
+    </div>
+
+    <!-- Análisis LLM estratégico -->
+    <div class="card">
+      <div class="card-head" style="padding:14px 18px 0;display:flex;justify-content:space-between;align-items:center">
+        <span>✦ Análisis estratégico · IA</span>
+        <div style="display:flex;gap:8px;padding-bottom:8px">
+          <span style="font-size:11px;color:var(--gray)" id="estrategiaFecha"></span>
+          <button class="btn btn-primary btn-sm" id="btnEstrategia"
+                  onclick="generarAnalisisEstrategico()">
+            Analizar plan
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="briefing-body" id="estrategiaBody"
+             style="color:var(--text)">
+          Haz clic en "Analizar plan" para que la IA evalúe el avance
+          de los 6 objetivos estratégicos y recomiende ajustes.
+        </div>
+
+        <!-- Chat estratégico -->
+        <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+          <div style="font-size:11px;font-weight:600;color:var(--gray);text-transform:uppercase;
+                      letter-spacing:.5px;margin-bottom:8px">
+            Consulta estratégica
+          </div>
+          <div class="chat-msgs" id="chatEstrMsgs" style="max-height:180px">
+            <div class="msg msg-bot" style="font-size:12.5px">
+              Puedes preguntarme cosas como:
+              <em>"¿Vamos a llegar a EBITDA positivo este año?"</em>,
+              <em>"¿Qué hotel tiene más oportunidad de densificación?"</em>
+              o <em>"¿Deberíamos cambiar el foco de la estrategia?"</em>
+            </div>
+          </div>
+          <div class="chat-input-row" style="padding:8px 0 0">
+            <input class="chat-input" id="chatEstrInput" type="text"
+                   placeholder="Pregunta estratégica..."
+                   onkeydown="if(event.key==='Enter') enviarChatEstrategico()"/>
+            <button class="btn btn-primary" onclick="enviarChatEstrategico()">
+              Enviar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal WhatsApp -->
+<div class="modal-overlay" id="modalWA">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModal()">×</button>
+    <h3 id="modalTitulo">Mensaje para ...</h3>
+    <div class="msg-whatsapp" id="modalMensaje"></div>
+    <button class="btn btn-primary"
+            onclick="copiarMensaje()">📋 Copiar mensaje</button>
+    <button class="btn" style="margin-left:8px"
+            onclick="cerrarModal()">Cerrar</button>
+  </div>
+</div>
+
+<!-- Modal Compromiso -->
+<div class="modal-overlay" id="modalComp">
+  <div class="modal">
+    <button class="modal-close" onclick="cerrarModalComp()">×</button>
+    <h3>Nuevo compromiso</h3>
+    <div class="form-grid" style="margin-top:12px">
+      <div class="form-field">
+        <label>Vendedor</label>
+        <select id="cVendedor">
+          <option value="">Seleccionar...</option>
+          <option>ZORAIDA MARIA HERNANDEZ ALVARADO</option>
+          <option>RONALD RUDAS SEÑA</option>
+          <option>OFICINA CARTAGENA TBS</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label>Tipo</label>
+        <select id="cTipo">
+          <option value="visita">Visita</option>
+          <option value="pedido">Pedido</option>
+          <option value="cartera">Cartera</option>
+          <option value="nuevo_cliente">Cliente nuevo</option>
+        </select>
+      </div>
+      <div class="form-field full">
+        <label>Cliente</label>
+        <input id="cCliente" type="text" placeholder="Nombre del cliente"/>
+      </div>
+      <div class="form-field full">
+        <label>Descripción</label>
+        <textarea id="cDesc" placeholder="¿Qué debe hacer el vendedor?"></textarea>
+      </div>
+      <div class="form-field">
+        <label>Fecha límite</label>
+        <input id="cFecha" type="date"/>
+      </div>
+      <div class="form-field" style="align-self:flex-end">
+        <button class="btn btn-primary" onclick="crearCompromiso()">
+          Guardar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/agente';
+let mensajesWA = {};
+let chatHistorial = [];
+let clienteSelId = 0;
+
+const fmt = (n) => n == null ? '—' :
+  new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',
+  maximumFractionDigits:0}).format(n);
+const fmtM = (n) => n == null ? '—' :
+  '$' + (n/1e6).toFixed(1) + 'M';
+const pct = (n, meta) => {
+  const p = Math.min(n, 100);
+  const cls = p >= 80 ? 'fill-ok' : p >= 50 ? 'fill-warn' : 'fill-bad';
+  return `<div class="kpi-mini-bar">
+    <div class="kpi-mini-fill ${cls}" style="width:${p}%"></div></div>`;
+};
+
+async function fetchJSON(url, opts={}) {
+  const r = await fetch(url, opts);
+  return r.json();
+}
+
+// ── Briefing ───────────────────────────────────────────────
+async function cargarBriefing() {
+  const d = await fetchJSON(API + '/briefing');
+  document.getElementById('briefingBody').classList.remove('pulse');
+  document.getElementById('briefingBody').innerHTML =
+    (d.contenido||'Sin briefing disponible.')
+      .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+  if (d.fecha) {
+    document.getElementById('briefingFecha').textContent =
+      'Generado: ' + new Date(d.fecha).toLocaleString('es-CO',
+        {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+  }
+  mensajesWA = d.mensajes || {};
+}
+
+async function regenerarBriefing() {
+  const btn = document.getElementById('btnBriefing');
+  btn.disabled = true; btn.textContent = '⏳ Analizando equipo...';
+  document.getElementById('briefingBody').innerHTML =
+    '<span class="pulse">El supervisor está revisando el estado del equipo...</span>';
+  try {
+    const d = await fetchJSON(API + '/briefing/regenerar', {method:'POST'});
+    document.getElementById('briefingBody').innerHTML =
+      (d.contenido||'').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
+    mensajesWA = d.mensajes || {};
+    document.getElementById('briefingFecha').textContent =
+      'Generado ahora · ' + new Date().toLocaleTimeString('es-CO',
+        {hour:'2-digit',minute:'2-digit'});
+  } catch(e) {
+    document.getElementById('briefingBody').textContent =
+      'Error. Verifica la API key de Anthropic en .env';
+  }
+  btn.disabled = false; btn.textContent = '✦ Nuevo briefing';
+}
+
+// ── Scorecards vendedores ──────────────────────────────────
+async function cargarEquipo() {
+  const d = await fetchJSON(API + '/estado-equipo');
+  const vends = (d.vendedores||[]).filter(v => v.cuota_gmv > 0);
+  const grid = document.getElementById('vendorGrid');
+  grid.innerHTML = vends.map(v => {
+    const sem = v.semaforo || 'verde';
+    const pctGmv = Math.min(v.avance_gmv_pct || 0, 100);
+    const pctCta  = Math.min(v.avance_cuentas_pct || 0, 100);
+    const clsG = pctGmv >= 80 ? 'fill-ok' : pctGmv >= 50 ? 'fill-warn' : 'fill-bad';
+    const clsC = pctCta >= 80 ? 'fill-ok' : pctCta >= 50 ? 'fill-warn' : 'fill-bad';
+    const firstName = v.nombre.split(' ')[0];
+
+    return `<div class="vendor-card">
+      <div class="vendor-head">
+        <div>
+          <div class="vendor-name">${v.nombre.split(' ').slice(0,2).join(' ')}</div>
+          <div class="vendor-sub">${v.ordenes} órdenes este mes</div>
+        </div>
+        <div class="semaforo sem-${sem}"></div>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">GMV mes</div>
+          <div class="kpi-mini-value">${fmtM(v.gmv_mes)}</div>
+          <div style="font-size:10px;color:var(--gray)">
+            ${v.avance_gmv_pct}% de ${fmtM(v.cuota_gmv)}
+          </div>
+          <div class="kpi-mini-bar">
+            <div class="kpi-mini-fill ${clsG}" style="width:${pctGmv}%"></div>
+          </div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Cuentas activas</div>
+          <div class="kpi-mini-value">${v.cuentas_activas}</div>
+          <div style="font-size:10px;color:var(--gray)">
+            Meta: ${v.cuota_cuentas}
+          </div>
+          <div class="kpi-mini-bar">
+            <div class="kpi-mini-fill ${clsC}" style="width:${pctCta}%"></div>
+          </div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Clientes nuevos</div>
+          <div class="kpi-mini-value">${v.clientes_nuevos}</div>
+          <div style="font-size:10px;color:var(--gray)">Meta: ${v.cuota_nuevos}</div>
+        </div>
+        <div class="kpi-mini">
+          <div class="kpi-mini-label">Cartera vencida</div>
+          <div class="kpi-mini-value ${v.pct_cartera > v.cuota_cartera
+            ? 'kpi-red' : ''}" style="${v.pct_cartera > v.cuota_cartera
+            ? 'color:var(--red)' : ''}">
+            ${v.pct_cartera}%
+          </div>
+          <div style="font-size:10px;color:var(--gray)">
+            Max: ${v.cuota_cartera}%
+          </div>
+        </div>
+      </div>
+      <button class="vendor-msg-btn"
+              onclick="verMensajeWA('${v.nombre}', '${firstName}')">
+        📱 Ver mensaje para ${firstName}
+      </button>
+    </div>`;
+  }).join('');
+}
+
+// ── Modal WhatsApp ─────────────────────────────────────────
+function verMensajeWA(nombre, firstName) {
+  const msg = mensajesWA[nombre];
+  document.getElementById('modalTitulo').textContent =
+    `Mensaje para ${firstName}`;
+  document.getElementById('modalMensaje').textContent =
+    msg || 'Aún no se ha generado el mensaje. Haz clic en "Nuevo briefing".';
+  document.getElementById('modalWA').classList.add('open');
+}
+function cerrarModal() {
+  document.getElementById('modalWA').classList.remove('open');
+}
+function copiarMensaje() {
+  const txt = document.getElementById('modalMensaje').textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copiado';
+    setTimeout(() => btn.textContent = '📋 Copiar mensaje', 2000);
+  });
+}
+
+// ── Cuentas en riesgo ──────────────────────────────────────
+async function cargarRiesgo() {
+  const d = await fetchJSON(API + '/cuentas-riesgo?dias=14');
+  const tbody = document.getElementById('riesgoBody');
+  const cuentas = (d.cuentas||[]).slice(0, 12);
+  if (!cuentas.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--green);padding:12px">✓ Sin cuentas en riesgo</td></tr>';
+    return;
+  }
+  tbody.innerHTML = cuentas.map(c => {
+    const cls = c.dias_inactivo > 21 ? 'tag-rojo' : 'tag-amarillo';
+    return `<tr>
+      <td style="font-weight:500">
+        ${c.cliente.length>35?c.cliente.slice(0,35)+'…':c.cliente}
+      </td>
+      <td style="color:var(--gray)">${c.vendedor.split(' ')[0]}</td>
+      <td class="right">
+        <span class="tag ${cls}">${c.dias_inactivo}d</span>
+      </td>
+      <td class="right">${fmtM(c.gmv_mensual_prom)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Portafolio ─────────────────────────────────────────────
+async function cargarPortafolio() {
+  const d = await fetchJSON(API + '/portafolio?top_n=15');
+  const tbody = document.getElementById('portafolioBody');
+  const items = (d.portafolio||[]).slice(0,10);
+  tbody.innerHTML = items.map(p => {
+    const cls = p.cobertura_pct >= 80 ? 'tag-verde'
+              : p.cobertura_pct >= 60 ? 'tag-amarillo' : 'tag-rojo';
+    const faltantes = (p.categorias_faltantes||[]).slice(0,3).join(', ');
+    return `<tr>
+      <td style="font-weight:500">
+        ${p.cliente.length>30?p.cliente.slice(0,30)+'…':p.cliente}
+      </td>
+      <td style="color:var(--gray)">${(p.vendedor||'').split(' ')[0]}</td>
+      <td class="right">
+        <span class="tag ${cls}">${p.cobertura_pct}%</span>
+      </td>
+      <td style="color:var(--red);font-size:12px">${faltantes||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Marcas estratégicas ────────────────────────────────────
+async function cargarMarcas() {
+  const d = await fetchJSON(API + '/marcas?top_n=15');
+  const tbody = document.getElementById('marcasBody');
+  const items = (d.marcas||[])
+    .filter(m => m.cobertura_pct < 100)
+    .slice(0,10);
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="color:var(--green);padding:12px">✓ Todas las cuentas top tienen las marcas estratégicas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(m => {
+    const cls = m.cobertura_pct >= 70 ? 'tag-amarillo' : 'tag-rojo';
+    const faltantes = (m.marcas_faltantes||[]).slice(0,3).join(', ');
+    return `<tr>
+      <td style="font-weight:500">
+        ${m.cliente.length>32?m.cliente.slice(0,32)+'…':m.cliente}
+      </td>
+      <td class="right">
+        <span class="tag ${cls}">${m.cobertura_pct}%</span>
+      </td>
+      <td style="font-size:12px;color:var(--red)">${faltantes||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Compromisos ────────────────────────────────────────────
+async function cargarCompromisos() {
+  const d = await fetchJSON(API + '/compromisos');
+  const tbody = document.getElementById('compromisosBody');
+  const items = (d.compromisos||[]).slice(0,8);
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--green);padding:10px">✓ Sin compromisos pendientes</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(c => {
+    const cls = c.dias_restantes < 0 ? 'tag-rojo'
+              : c.dias_restantes <= 1 ? 'tag-amarillo' : 'tag-verde';
+    const diasTxt = c.dias_restantes < 0
+      ? `${Math.abs(c.dias_restantes)}d vencido`
+      : c.dias_restantes === 0 ? 'Hoy' : `${c.dias_restantes}d`;
+    return `<tr>
+      <td>${(c.vendedor||'').split(' ')[0]}</td>
+      <td>${(c.cliente||'').slice(0,22)}</td>
+      <td style="font-size:12px">${(c.descripcion||'').slice(0,35)}</td>
+      <td class="right">
+        <span class="tag ${cls}">${diasTxt}</span>
+      </td>
+      <td class="center">
+        <button class="btn btn-sm btn-green"
+                onclick="cerrarCompromiso(${c.id})">✓</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function cerrarCompromiso(id) {
+  const resultado = prompt('¿Cómo quedó? (opcional)');
+  if (resultado === null) return;
+  await fetch(`${API}/compromisos/${id}/cerrar?resultado=${encodeURIComponent(resultado)}`,
+    {method:'PATCH'});
+  cargarCompromisos();
+}
+
+function abrirModalCompromiso() {
+  document.getElementById('modalComp').classList.add('open');
+  // Setear fecha por defecto: 3 días desde hoy
+  const d = new Date(); d.setDate(d.getDate() + 3);
+  document.getElementById('cFecha').value = d.toISOString().slice(0,10);
+}
+function cerrarModalComp() {
+  document.getElementById('modalComp').classList.remove('open');
+}
+
+async function crearCompromiso() {
+  const body = {
+    vendedor:         document.getElementById('cVendedor').value,
+    cliente:          document.getElementById('cCliente').value,
+    descripcion:      document.getElementById('cDesc').value,
+    tipo:             document.getElementById('cTipo').value,
+    fecha_compromiso: document.getElementById('cFecha').value,
+  };
+  if (!body.vendedor || !body.descripcion) {
+    alert('Completa vendedor y descripción');
+    return;
+  }
+  await fetch(`${API}/compromisos`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  cerrarModalComp();
+  cargarCompromisos();
+}
+
+// ── Visitas ────────────────────────────────────────────────
+async function cargarVisitas() {
+  const d = await fetchJSON(API + '/visitas');
+  const tbody = document.getElementById('visitasBody');
+  const items = (d.visitas||[]).slice(0,5);
+  if (!items.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--gray);font-size:12px;padding:10px">Sin visitas registradas esta semana</td></tr>';
+    return;
+  }
+  tbody.innerHTML = items.map(v => `<tr>
+    <td>${(v.vendedor||'').split(' ')[0]}</td>
+    <td>${(v.cliente||'').slice(0,25)}</td>
+    <td>${v.tipo}</td>
+    <td class="right">${v.monto_pedido > 0 ? fmtM(v.monto_pedido) : '—'}</td>
+  </tr>`).join('');
+}
+
+async function registrarVisita() {
+  const body = {
+    vendedor:     document.getElementById('fVendedor').value,
+    cliente:      document.getElementById('fCliente').value,
+    partner_id:   clienteSelId,
+    tipo:         document.getElementById('fTipo').value,
+    resultado:    document.getElementById('fResultado').value,
+    compromiso:   document.getElementById('fCompromiso').value,
+    monto_pedido: parseFloat(document.getElementById('fMonto').value)||0,
+  };
+  if (!body.vendedor || !body.cliente) {
+    alert('Selecciona vendedor y cliente');
+    return;
+  }
+  await fetch(`${API}/visitas`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  document.getElementById('fResultado').value = '';
+  document.getElementById('fCompromiso').value = '';
+  document.getElementById('fMonto').value = '';
+  cargarVisitas();
+  alert('Visita registrada ✓');
+}
+
+// ── Buscador de cliente ────────────────────────────────────
+let busquedaTimer;
+async function buscarCliente(q) {
+  clearTimeout(busquedaTimer);
+  if (q.length < 2) {
+    document.getElementById('clienteSugs').style.display = 'none';
+    return;
+  }
+  busquedaTimer = setTimeout(async () => {
+    const d = await fetchJSON(`${API}/clientes/buscar?q_str=${encodeURIComponent(q)}&limit=8`);
+    const box = document.getElementById('clienteSugs');
+    if (!d.clientes?.length) { box.style.display='none'; return; }
+    box.innerHTML = d.clientes.map(c =>
+      `<div onclick="selCliente(${c.id},'${c.name.replace(/'/g,"\\'")}')"]
+            style="padding:8px 12px;cursor:pointer;font-size:13px;
+                   border-bottom:1px solid var(--border)"
+            onmouseover="this.style.background='var(--gray-light)'"
+            onmouseout="this.style.background='white'">
+        ${c.name}
+      </div>`
+    ).join('');
+    box.style.display = 'block';
+  }, 300);
+}
+
+function selCliente(id, nombre) {
+  clienteSelId = id;
+  document.getElementById('fCliente').value = nombre;
+  document.getElementById('clienteSugs').style.display = 'none';
+}
+
+// ── Chat ───────────────────────────────────────────────────
+async function enviarChat() {
+  const input = document.getElementById('chatInput');
+  const pregunta = input.value.trim();
+  if (!pregunta) return;
+  input.value = '';
+  const msgs = document.getElementById('chatMsgs');
+  msgs.innerHTML += `<div class="msg msg-user">${pregunta}</div>`;
+  msgs.innerHTML += `<div class="msg msg-bot pulse" id="thinkMsg">✦ Consultando...</div>`;
+  msgs.scrollTop = msgs.scrollHeight;
+  chatHistorial.push({rol:'user', contenido: pregunta});
+
+  try {
+    const r = await fetch(`${API}/chat`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({pregunta, historial: chatHistorial.slice(-4)})
+    });
+    const d = await r.json();
+    const resp = d.respuesta || 'Sin respuesta.';
+    chatHistorial.push({rol:'assistant', contenido: resp});
+    document.getElementById('thinkMsg')?.remove();
+    msgs.innerHTML += `<div class="msg msg-bot">${
+      resp.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')}</div>`;
+  } catch {
+    document.getElementById('thinkMsg')?.remove();
+    msgs.innerHTML += `<div class="msg msg-bot">Error conectando.</div>`;
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ── Carga general ──────────────────────────────────────────
+async function recargar() {
+  document.getElementById('headerFecha').textContent =
+    'Cartagena · ' + new Date().toLocaleDateString('es-CO',
+      {weekday:'long', day:'numeric', month:'long'});
+
+  await Promise.allSettled([
+    cargarBriefing(),
+    cargarObjetivos(),
+    cargarAnalisisEstrategico(),
+    cargarEquipo(),
+    cargarRiesgo(),
+    cargarPortafolio(),
+    cargarMarcas(),
+    cargarCompromisos(),
+    cargarVisitas(),
+  ]);
+}
+
+recargar();
+setInterval(recargar, 4 * 60 * 60 * 1000);
+</script>
+</body>
+</html>
