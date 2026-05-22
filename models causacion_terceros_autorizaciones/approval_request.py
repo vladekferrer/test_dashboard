@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+import logging
 import json
 import base64
 from difflib import SequenceMatcher
 from dateutil.relativedelta import relativedelta
 from odoo import api, fields, models, _
 from odoo.exceptions import ValidationError, UserError
+
+_logger = logging.getLogger(__name__)
 
 
 class ApprovalProductLine(models.Model):
@@ -75,6 +78,26 @@ class ApprovalRequest(models.Model):
         for rec in self:
             rec.is_approver = self.env.user in rec.approver_ids.mapped("user_id")
 
+    @api.model
+    def _obtener_mejor_coincidencia(self, descripcion):
+        if not descripcion:
+            return False
+            
+        etiquetas = self.env['maestro.servicios.etiqueta'].search([])
+        mejor_ratio = 0.0
+        mejor_etiqueta = None
+        for etiqueta in etiquetas:
+            if not etiqueta.name:
+                continue
+            ratio = SequenceMatcher(None, descripcion.lower(), etiqueta.name.lower()).ratio()
+            if ratio > mejor_ratio:
+                mejor_ratio = ratio
+                mejor_etiqueta = etiqueta
+                
+        if mejor_ratio >= 0.40 and mejor_etiqueta:
+            return mejor_etiqueta.servicio_id
+        return False
+
     @api.depends("analisis_cotizaciones_json")
     def _compute_tablas_cotizaciones_html(self):
         for rec in self:
@@ -93,26 +116,36 @@ class ApprovalRequest(models.Model):
                     nit = info.get("nit", "N/A")
                     total = info.get("total_final", 0.0)
                     
+                    _logger.info("Generando HTML para cotización: %s", att_name)
+                    
                     html += f"<div style='border:1px solid #ddd; padding:15px; border-radius:5px; flex:1; min-width:300px;'>"
                     html += f"<h4>{proveedor} (NIT: {nit})</h4>"
                     html += f"<h5>Archivo: {att_name}</h5>"
                     
-                    html += "<table style='width:100%; border-collapse:collapse; margin-bottom:10px;'>"
-                    html += "<tr><th style='border:1px solid #ccc; padding:8px; background-color:#f8f9fa;'>Descripción</th><th style='border:1px solid #ccc; padding:8px; background-color:#f8f9fa;'>Precio Unitario</th></tr>"
+                    html += "<table class='table table-sm table-bordered' style='margin-bottom:10px;'>"
+                    html += "<thead><tr><th>Descripción</th><th>Servicio</th><th style='text-align:right;'>Precio Unitario</th></tr></thead>"
+                    html += "<tbody>"
                     
                     line_items = info.get("line_items", [])
                     for line in line_items:
                         desc = line.get("descripcion", "")
                         precio = line.get("precio_unitario", 0.0)
-                        html += f"<tr><td style='border:1px solid #ccc; padding:8px;'>{desc}</td><td style='border:1px solid #ccc; padding:8px; text-align:right;'>${precio:,.2f}</td></tr>"
+                        
+                        servicio = rec._obtener_mejor_coincidencia(desc)
+                        servicio_name = servicio.name if servicio else "<span style='color:red;'>Sin coincidencia</span>"
+                        
+                        _logger.info("Fuzzy Match HTML -> Buscado: '%s' | Encontrado: '%s'", desc, servicio_name)
+                        
+                        html += f"<tr><td>{desc}</td><td>{servicio_name}</td><td style='text-align:right;'>${precio:,.2f}</td></tr>"
                     
-                    html += f"<tr><td style='border:1px solid #ccc; padding:8px; font-weight:bold; text-align:right;'>TOTAL FINAL</td><td style='border:1px solid #ccc; padding:8px; font-weight:bold; text-align:right;'>${total:,.2f}</td></tr>"
-                    html += "</table>"
+                    html += f"<tr><td colspan='2' style='font-weight:bold; text-align:right;'>TOTAL FINAL</td><td style='font-weight:bold; text-align:right;'>${total:,.2f}</td></tr>"
+                    html += "</tbody></table>"
                     html += "</div>"
                     
                 html += "</div></div>"
                 rec.tablas_cotizaciones_html = html
             except Exception as e:
+                _logger.error("Error procesando HTML de cotizaciones: %s", e)
                 rec.tablas_cotizaciones_html = f"<p>Error al procesar el análisis: {str(e)}</p>"
 
     def action_analizar_cotizaciones(self):
@@ -205,36 +238,29 @@ Devuelve un JSON con esta estructura:
                             self.proveedor_id = partner.id
                             
                     cmds = [(5, 0, 0)]
-                    etiquetas = self.env['maestro.servicios.etiqueta'].search([])
                     requiere_correccion = False
                     
                     for line in line_items:
-                        descripcion = line.get("descripcion", "")
+                        descripcion = line.get("descripcion", "") or "Servicio extraído"
                         precio = line.get("precio_unitario", 0.0)
                         
-                        mejor_ratio = 0.0
-                        mejor_etiqueta = None
-                        for etiqueta in etiquetas:
-                            if not etiqueta.name:
-                                continue
-                            ratio = SequenceMatcher(None, descripcion.lower(), etiqueta.name.lower()).ratio()
-                            if ratio > mejor_ratio:
-                                mejor_ratio = ratio
-                                mejor_etiqueta = etiqueta
-                                
-                        servicio_id = False
-                        if mejor_ratio >= 0.40 and mejor_etiqueta:
-                            servicio_id = mejor_etiqueta.servicio_id.id
+                        servicio = self._obtener_mejor_coincidencia(descripcion)
+                        servicio_id = servicio.id if servicio else False
                             
                         if not servicio_id:
                             requiere_correccion = True
                             
+                        _logger.info("Fuzzy Match OnChange -> Buscado: '%s' | Encontrado ID: %s", descripcion, servicio_id)
+                            
                         cmds.append((0, 0, {
+                            'company_id': self.company_id.id,
                             'description': descripcion,
                             'quantity': 1.0,
-                            'price_unit': precio,
+                            'price_unit': float(precio),
                             'servicio_id': servicio_id,
                         }))
+                        
+                    _logger.info("Inyectando product_line_ids con comandos: %s", cmds)
                         
                     self.product_line_ids = cmds
                     self.requiere_correccion_creador = requiere_correccion
@@ -306,6 +332,35 @@ Devuelve un JSON con esta estructura:
                     # Permitir edición de campos si requiere corrección creador
                     if estado and estado != "new" and not rec.requiere_correccion_creador:
                         raise ValidationError(_("No puedes modificar Compañía/Proveedor/Servicio/Vigencia una vez enviada a aprobación."))
+
+            # Estrategia Backend (Plan B): Si el frontend descartó silenciosamente product_line_ids, las inyectamos aquí.
+            if "cotizacion_ganadora_id" in vals and vals.get("cotizacion_ganadora_id"):
+                if "product_line_ids" not in vals:
+                    _logger.warning("El frontend descartó product_line_ids. Ejecutando Plan B en backend para recuperar las líneas.")
+                    for rec in self:
+                        if rec.analisis_cotizaciones_json:
+                            try:
+                                data = json.loads(rec.analisis_cotizaciones_json)
+                                for item in data:
+                                    if item.get("attachment_id") == vals["cotizacion_ganadora_id"]:
+                                        info = item.get("data", {})
+                                        line_items = info.get("line_items", [])
+                                        cmds = [(5, 0, 0)]
+                                        for line in line_items:
+                                            descripcion = line.get("descripcion", "") or "Servicio extraído"
+                                            precio = line.get("precio_unitario", 0.0)
+                                            servicio = rec._obtener_mejor_coincidencia(descripcion)
+                                            cmds.append((0, 0, {
+                                                'company_id': rec.company_id.id,
+                                                'description': descripcion,
+                                                'quantity': 1.0,
+                                                'price_unit': float(precio),
+                                                'servicio_id': servicio.id if servicio else False,
+                                            }))
+                                        vals["product_line_ids"] = cmds
+                                        break
+                            except Exception as e:
+                                _logger.error("Error en Plan B inyectando product_line_ids: %s", e)
 
             res = super().write(vals)
 
