@@ -384,6 +384,76 @@ class DianInvoiceExtractor(models.Model):
 
 
 
+    @api.model
+    def filtrar_impuestos_aplicables(self, partner_id, tax_ids, precio_linea):
+        """
+        Filtra los impuestos aplicables basándose en el tope UVT y las reglas visuales de exclusión.
+        Retorna:
+            - list of account.tax ids
+            - str con el log de decisiones
+        """
+        impuestos_resultantes = []
+        log_mensajes = []
+        VALOR_UVT_ANO = 47065.0
+        
+        impuestos = self.env['account.tax'].browse(tax_ids)
+        for tax in impuestos:
+            excluido = False
+            # Paso A: Tope UVT
+            monto_uvt = getattr(tax, 'monto_uvt', 0.0)
+            if monto_uvt > 0:
+                umbral = monto_uvt * VALOR_UVT_ANO
+                if precio_linea < umbral:
+                    log_mensajes.append(f"Impuesto '{tax.name}' excluido por tope UVT (Base {precio_linea} < Umbral {umbral})")
+                    excluido = True
+            
+            # Paso B: Reglas Visuales
+            if not excluido and partner_id:
+                # Determinar clasificación del impuesto (desde los campos calculados)
+                es_iva = getattr(tax, 'es_iva', False)
+                es_retefuente = getattr(tax, 'es_retefuente', False)
+                es_reteica = getattr(tax, 'es_reteica', False)
+                es_reteiva = getattr(tax, 'es_reteiva', False)
+                
+                # Buscar reglas de exclusión
+                reglas = self.env['causacion.regla.exclusion'].search([])
+                for regla in reglas:
+                    aplica_regla = False
+                    
+                    if regla.filtro_regimen_simplificado and getattr(partner_id, 'es_regimen_simplificado', False):
+                        aplica_regla = True
+                    elif regla.filtro_regimen_simple and getattr(partner_id, 'es_regimen_simple', False):
+                        aplica_regla = True
+                    elif regla.filtro_autorretenedor and getattr(partner_id, 'es_autorretenedor_renta', False):
+                        aplica_regla = True
+                        
+                    if aplica_regla:
+                        if regla.tipo_impuesto_a_excluir == 'iva' and es_iva:
+                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
+                            excluido = True
+                            break
+                        elif regla.tipo_impuesto_a_excluir == 'retefuente' and es_retefuente:
+                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
+                            excluido = True
+                            break
+                        elif regla.tipo_impuesto_a_excluir == 'reteica' and es_reteica:
+                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
+                            excluido = True
+                            break
+                        elif regla.tipo_impuesto_a_excluir == 'reteiva' and es_reteiva:
+                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
+                            excluido = True
+                            break
+
+            if not excluido:
+                impuestos_resultantes.append(tax.id)
+                
+        decision_log_str = "\n".join(log_mensajes)
+        if decision_log_str:
+            _logger.info("Filtro de Impuestos: \n%s", decision_log_str)
+            
+        return impuestos_resultantes, decision_log_str
+
     def _construir_lineas_factura_desde_invoice_lines(self): 
         self.ensure_one() 
 
@@ -438,6 +508,11 @@ class DianInvoiceExtractor(models.Model):
                         for impuesto in linea.grupo_impuestos: 
                             if impuesto.id not in tax_ids: 
                                 tax_ids.append(impuesto.id) 
+            
+            # Pasar los impuestos por el filtro visual y de UVT
+            tax_ids, decision_log = self.filtrar_impuestos_aplicables(self.proveedor_id, tax_ids, price_unit * qty)
+            if decision_log:
+                vals["tax_decision_log"] = decision_log
                                 
             # Identificar si hay IVA (impuesto con monto > 0) 
             tiene_iva = False 
@@ -529,7 +604,7 @@ class DianInvoiceExtractor(models.Model):
                 _logger.info("Inyectada línea global de Total IVA Mayor Valor Gasto por monto: %s", vals_iva_acumulado["price_unit"]) 
             else: 
                 _logger.error("No se pudo inyectar la línea global de IVA Mayor Valor porque no se encontró cuenta en el servicio.") 
-
+  
         return cmds
 
 
