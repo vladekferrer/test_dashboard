@@ -27,6 +27,10 @@ class MaestroServicios(models.Model):
     company_id = fields.Many2one('res.company', default=lambda self: self.env.company)
     cuenta_pago = fields.Many2one('account.account', string='Cuenta de Pago')
     
+    # Base Especial (AIU)
+    maneja_base_especial = fields.Boolean(string='Maneja Base Especial (AIU)')
+    porcentaje_base_especial = fields.Float(string='Porcentaje de Base (%)')
+    
     
     linea_exclusion_ids = fields.One2many(
         'maestro.servicios.line', 

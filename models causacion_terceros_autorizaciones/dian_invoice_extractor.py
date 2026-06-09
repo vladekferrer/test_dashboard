@@ -386,12 +386,6 @@ class DianInvoiceExtractor(models.Model):
 
     @api.model
     def filtrar_impuestos_aplicables(self, partner_id, tax_ids, precio_linea):
-        """
-        Filtra los impuestos aplicables basándose en el tope UVT y las reglas visuales de exclusión.
-        Retorna:
-            - list of account.tax ids
-            - str con el log de decisiones
-        """
         impuestos_resultantes = []
         log_mensajes = []
         VALOR_UVT_ANO = 47065.0
@@ -409,39 +403,36 @@ class DianInvoiceExtractor(models.Model):
             
             # Paso B: Reglas Visuales
             if not excluido and partner_id:
-                # Determinar clasificación del impuesto (desde los campos calculados)
-                es_iva = getattr(tax, 'es_iva', False)
-                es_retefuente = getattr(tax, 'es_retefuente', False)
-                es_reteica = getattr(tax, 'es_reteica', False)
-                es_reteiva = getattr(tax, 'es_reteiva', False)
-                
-                # Buscar reglas de exclusión
                 reglas = self.env['causacion.regla.exclusion'].search([])
                 for regla in reglas:
-                    aplica_regla = False
+                    # 1. Chequear si la regla tiene al menos un filtro activo
+                    filtros_activos = any([
+                        regla.filtro_regimen_simplificado,
+                        regla.filtro_regimen_simple,
+                        regla.filtro_regimen_comun,
+                        regla.filtro_autorretenedor
+                    ])
                     
-                    if regla.filtro_regimen_simplificado and getattr(partner_id, 'es_regimen_simplificado', False):
-                        aplica_regla = True
-                    elif regla.filtro_regimen_simple and getattr(partner_id, 'es_regimen_simple', False):
-                        aplica_regla = True
-                    elif regla.filtro_autorretenedor and getattr(partner_id, 'es_autorretenedor_renta', False):
-                        aplica_regla = True
+                    if not filtros_activos:
+                        continue # Reglas vacías no hacen nada
                         
+                    # 2. Lógica estricta AND: Evaluamos falsedad
+                    aplica_regla = True
+                    
+                    if regla.filtro_regimen_simplificado and not getattr(partner_id, 'es_regimen_simplificado', False):
+                        aplica_regla = False
+                    if regla.filtro_regimen_simple and not getattr(partner_id, 'es_regimen_simple', False):
+                        aplica_regla = False
+                    if regla.filtro_regimen_comun and not getattr(partner_id, 'es_regimen_comun', False):
+                        aplica_regla = False
+                    if regla.filtro_autorretenedor and not getattr(partner_id, 'es_autorretenedor_renta', False):
+                        aplica_regla = False
+                        
+                    # 3. Si sobrevivió a todos los filtros activos, ejecutamos
                     if aplica_regla:
-                        if regla.tipo_impuesto_a_excluir == 'iva' and es_iva:
-                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
-                            excluido = True
-                            break
-                        elif regla.tipo_impuesto_a_excluir == 'retefuente' and es_retefuente:
-                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
-                            excluido = True
-                            break
-                        elif regla.tipo_impuesto_a_excluir == 'reteica' and es_reteica:
-                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
-                            excluido = True
-                            break
-                        elif regla.tipo_impuesto_a_excluir == 'reteiva' and es_reteiva:
-                            log_mensajes.append(f"Impuesto '{tax.name}' excluido por Regla Visual '{regla.name}'")
+                        tipo_impuesto_id = getattr(tax, 'tipo_impuesto_id', False)
+                        if tipo_impuesto_id and tipo_impuesto_id.id in regla.impuestos_a_excluir_ids.ids:
+                            log_mensajes.append(f"Regla Visual Aplicada: Se excluyó '{tax.name}' porque coincide con el tipo de impuesto a excluir '{tipo_impuesto_id.name}'.")
                             excluido = True
                             break
 
@@ -498,6 +489,29 @@ class DianInvoiceExtractor(models.Model):
                 "price_unit": price_unit, 
                 "account_id": cfg.cuentas.id, 
             } 
+            
+            # --- INICIO HOOK BASE ESPECIAL (AIU) --- 
+            monto_no_gravado_acumulado = 0.0 
+            if getattr(servicio, 'maneja_base_especial', False): 
+                pct_base = getattr(servicio, 'porcentaje_base_especial', 10.0) 
+                if 0 < pct_base < 100: 
+                    ratio_aiu = pct_base / 100.0 
+                    ratio_no_gravado = 1.0 - ratio_aiu 
+                    
+                    # 1. Creamos e inyectamos la porción libre de impuestos 
+                    vals_no_gravado = vals.copy() 
+                    vals_no_gravado["name"] = f"{vals['name']} (Porción No Gravada {100 - pct_base:g}%)" 
+                    vals_no_gravado["price_unit"] = round(price_unit * ratio_no_gravado, 6) 
+                    cmds.append((0, 0, vals_no_gravado)) 
+                    
+                    # Guardamos el monto exacto para cuadrar el redondeo al final 
+                    monto_no_gravado_acumulado = round(qty * vals_no_gravado["price_unit"], 2) 
+                    
+                    # 2. Achicamos la base original al % especial para que la lógica de impuestos aplique sobre esto 
+                    price_unit = round(price_unit * ratio_aiu, 6) 
+                    vals["price_unit"] = price_unit 
+                    vals["name"] = f"{vals['name']} (Base AIU {pct_base:g}%)" 
+            # --- FIN HOOK --- 
             
             # Recolectar impuestos EXCLUSIVAMENTE desde el maestro.servicios 
             tax_ids = [] 
@@ -568,6 +582,9 @@ class DianInvoiceExtractor(models.Model):
                     vals["tax_ids"] = [(6, 0, tax_ids)] 
                 cmds.append((0, 0, vals)) 
                 subtotal_calculado = round(qty * price_unit, 2) 
+
+            # SUMAR LA PORCIÓN NO GRAVADA AL SUBTOTAL PARA QUE CUADRE LA MATEMÁTICA 
+            subtotal_calculado = round(subtotal_calculado + monto_no_gravado_acumulado, 2) 
 
             # Validación de seguridad: Ajuste de redondeo por pérdida de precisión 
             base_esperada = round(base, 2) 

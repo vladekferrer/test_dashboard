@@ -20,6 +20,9 @@ class ApprovalProductLine(models.Model):
 class ApprovalRequest(models.Model):
     _inherit = "approval.request"
 
+    # Se quita el default nativo para que no se establezca automáticamente 
+    request_owner_id = fields.Many2one('res.users', string="Request Owner", default=False) 
+
     # Datos “de negocio” para crear autorización
     proveedor_id = fields.Many2one("res.partner", string="Proveedor", tracking=True)
     servicio_id = fields.Many2one("maestro.servicios", string="Servicio", tracking=True)
@@ -112,9 +115,11 @@ class ApprovalRequest(models.Model):
                 for item in data:
                     att_name = item.get("attachment_name", "")
                     info = item.get("data", {})
-                    proveedor = info.get("proveedor", "Desconocido")
-                    nit = info.get("nit", "N/A")
-                    total = info.get("total_final", 0.0)
+                    
+                    # CORRECCIÓN DE LLAVES JSON
+                    proveedor = info.get("nombre_proveedor", "Desconocido")
+                    nit = info.get("nit_proveedor", "N/A")
+                    total = info.get("total_a_pagar", 0.0)
                     
                     _logger.info("Generando HTML para cotización: %s", att_name)
                     
@@ -129,7 +134,8 @@ class ApprovalRequest(models.Model):
                     line_items = info.get("line_items", [])
                     for line in line_items:
                         desc = line.get("descripcion", "")
-                        precio = line.get("precio_unitario", 0.0)
+                        # CORRECCIÓN DE LLAVE JSON
+                        precio = line.get("valor_total_linea", 0.0)
                         
                         servicio = rec._obtener_mejor_coincidencia(desc)
                         servicio_name = servicio.name if servicio else "<span style='color:red;'>Sin coincidencia</span>"
@@ -148,69 +154,91 @@ class ApprovalRequest(models.Model):
                 _logger.error("Error procesando HTML de cotizaciones: %s", e)
                 rec.tablas_cotizaciones_html = f"<p>Error al procesar el análisis: {str(e)}</p>"
 
-    def action_analizar_cotizaciones(self):
-        self.ensure_one()
-        attachments = self.env['ir.attachment'].search([
-            ('res_model', '=', 'approval.request'),
-            ('res_id', '=', self.id)
-        ])
+    def action_analizar_cotizaciones(self): 
+        self.ensure_one() 
+        _logger.info("=== INICIO ANÁLISIS DE COTIZACIONES (IA) - SOLICITUD ID: %s ===", self.id ) 
         
-        if not attachments:
-            raise UserError(_("No hay cotizaciones adjuntas para analizar."))
+        attachments = self.env['ir.attachment' ].search([ 
+            ('res_model', '=', 'approval.request' ), 
+            ('res_id', '=', self.id ) 
+        ]) 
             
-        Transcriptor = self.env['transcriptor.ocr']
-        transcriptor = Transcriptor.new({})
-        llm_service = transcriptor._obtener_llm_service()
-        if not llm_service:
-            raise UserError(_("No se pudo obtener el servicio LLM. Verifique la API Key."))
+        if not  attachments: 
+            _logger.warning("Solicitud %s: No hay cotizaciones adjuntas para analizar.", self.id ) 
+            raise UserError(_("No hay cotizaciones adjuntas para analizar." )) 
             
-        resultados = []
-        for att in attachments:
-            if not att.datas:
-                continue
+        Transcriptor = self.env['transcriptor.ocr' ] 
+        transcriptor = Transcriptor.new({}) 
+        llm_service = transcriptor._obtener_llm_service() 
+        
+        if not  llm_service: 
+            _logger.error("Solicitud %s: Falló la inicialización del servicio LLM. ¿Falta la API Key?", self.id ) 
+            raise UserError(_("No se pudo obtener el servicio LLM. Verifique la API Key." )) 
+            
+        resultados = [] 
+        for att in  attachments: 
+            if not  att.datas: 
+                continue 
                 
-            pdf_bytes = base64.b64decode(att.datas)
-            imagenes_b64 = transcriptor._preparar_imagenes_base64(pdf_bytes)
-            if not imagenes_b64:
-                continue
+            _logger.info("--> Procesando adjunto: %s" , att.name) 
+            pdf_bytes = base64.b64decode(att.datas) 
+            imagenes_b64 = transcriptor._preparar_imagenes_base64(pdf_bytes) 
+            
+            if not  imagenes_b64: 
+                continue 
                 
-            res_paso1 = llm_service.extraer_texto_y_nit(imagenes_b64)
-            texto = res_paso1.get("texto", "")
-            if not texto:
-                continue
+            res_paso1 = llm_service.extraer_texto_y_nit(imagenes_b64) 
+            texto = res_paso1.get("texto", "" ) 
+            
+            if not  texto: 
+                continue 
                 
-            prompt_regla = """
-Extrae el Nombre del Proveedor, el NIT o Cédula (solo números) y el TOTAL FINAL a pagar. Devuelve un JSON. 
-REGLAS CRÍTICAS DE EXTRACCIÓN: 
-
-REGLA 1 (IDENTIDAD): El NIT 800089872 (o 800089872-0) y el nombre 'DISMEL' corresponden SIEMPRE al cliente. ESTÁ TOTALMENTE PROHIBIDO poner a DISMEL como proveedor. El proveedor es la otra parte (puede ser una empresa o una persona natural con Cédula). 
-
-REGLA 2 (ESTRUCTURA VISUAL Y SÍNTESIS): Si el documento tiene una tabla formal con varios conceptos, extrae CADA concepto como un ítem separado dentro del arreglo 'line_items'. SOLO si el documento es informal y NO tiene tabla (ej. texto corrido o listas sin formato), CREA UNA SOLA LÍNEA en 'line_items'. Para la 'descripcion' de esta única línea, SINTETIZA de qué trata el servicio creando un título corto y general de MÁXIMO 10 PALABRAS (Ej: 'Servicios de mantenimiento y desmontaje general'). ESTÁ ESTRICTAMENTE PROHIBIDO copiar y pegar todo el texto descriptivo original. 
-
-REGLA 3 (TOTAL FINAL): El 'total_final' general DEBE ser el monto final y absoluto a pagar. IGNORA por completo anticipos, señas, o porcentajes. 
-
-Devuelve un JSON con esta estructura: 
+            _logger.info("Adjunto '%s': Petición 1 exitosa. Lanzando Petición 2 (Estructuración JSON)..." , att.name) 
+            
+            # PROMPT ULTRA ROBUSTO SOLO PARA APROBACIONES 
+            prompt_regla = """ 
+Extrae la información devolviendo este JSON estricto: 
 { 
-    "proveedor": "Nombre del proveedor", 
-    "nit": "NIT", 
-    "total_final": 0.0, 
-    "line_items": [ 
-        { 
-            "descripcion": "Descripción (sintetizada si es informal)", 
-            "precio_unitario": 0.0 
-        } 
-    ] 
+    "nombre_proveedor": "...", 
+    "nit_proveedor": "...", 
+    "razonamiento_total": "...", 
+    "subtotal_servicios": 0.0, 
+    "total_iva_factura": 0.0, 
+    "total_a_pagar": 0.0, 
+    "line_items": [ { "descripcion": "...", "valor_total_linea": 0.0 } ] 
 } 
-"""
-            res_paso2 = llm_service.extraer_json_final(texto, prompt_regla)
+
+REGLAS DE ORO (PENALIZACIÓN CRÍTICA SI FALLAS): 
+1. IDENTIFICACIÓN EXHAUSTIVA: Busca como un sabueso el NIT o Cédula de Ciudadanía (C.C.) del proveedor. Si es persona natural (como Pablo Montalvan o Roymar Romero), extrae su número de C.C. y ponlo en 'nit_proveedor'. ¡Nunca lo dejes null si el número está en el documento! 
+2. RESUMEN EXTREMO (MÁXIMO 10 PALABRAS): Para cuentas de cobro informales o listas largas de tareas, ESTÁ ESTRICTAMENTE PROHIBIDO copiar y pegar los párrafos enteros en 'descripcion'. RESUME la esencia del servicio usando un MÁXIMO DE 10 PALABRAS (Ej: "Desmontaje general de estanterías y equipos" o "Servicio de transporte de carga furgón"). Si pasas de 10 palabras, la extracción es inválida. 
+3. IMPUESTOS NO SON SERVICIOS: PROHIBIDO crear ítems de 'IVA', 'Retenciones' o 'Impuestos' en 'line_items'. 
+4. EXTRACCIÓN DE VALORES PUROS: "subtotal_servicios" es el valor base. "total_iva_factura" es el IVA (0.0 si no aplica). ¡LA IA NO DEBE SUMAR! Simplemente extrae los valores impresos. 
+""" 
+            res_paso2 = llm_service.extraer_json_final(texto, prompt_regla) 
             
-            resultados.append({
-                "attachment_id": att.id,
-                "attachment_name": att.name,
-                "data": res_paso2
-            })
+            # PARCHE ANTI-ALUCINACIONES MATEMÁTICAS EN PYTHON 
+            try : 
+                subtotal = float(res_paso2.get("subtotal_servicios", 0.0 )) 
+                iva = float(res_paso2.get("total_iva_factura", 0.0 )) 
+                
+                # Forzar el total a pagar correcto (Bruto: Subtotal + IVA) en Python 
+                if subtotal > 0 : 
+                    total_calculado = subtotal + iva 
+                    _logger.info("Corrigiendo matemáticas de la IA: Subtotal (%.2f) + IVA (%.2f) = %.2f" , subtotal, iva, total_calculado) 
+                    res_paso2["total_a_pagar" ] = total_calculado 
+            except Exception as  math_err: 
+                _logger.error("Error al forzar matemáticas en Python: %s" , math_err) 
             
-        self.analisis_cotizaciones_json = json.dumps(resultados, indent=4, ensure_ascii=False)
+            _logger.info("Adjunto '%s': JSON FINAL RESULTANTE:\n%s", att.name, json.dumps(res_paso2, indent=4, ensure_ascii=False )) 
+            
+            resultados.append({ 
+                "attachment_id": att.id , 
+                "attachment_name" : att.name, 
+                "data" : res_paso2 
+            }) 
+            
+        self.analisis_cotizaciones_json = json.dumps(resultados, indent=4, ensure_ascii=False ) 
+        _logger.info("=== FIN ANÁLISIS DE COTIZACIONES (IA) ===" ) 
         return True
 
     @api.onchange('cotizacion_ganadora_id')
@@ -223,8 +251,10 @@ Devuelve un JSON con esta estructura:
             for item in data:
                 if item.get("attachment_id") == self.cotizacion_ganadora_id.id:
                     info = item.get("data", {})
-                    total = info.get("total_final", 0.0)
-                    nit = info.get("nit", "")
+                    
+                    # CORRECCIÓN DE LLAVES JSON
+                    total = info.get("total_a_pagar", 0.0)
+                    nit = info.get("nit_proveedor", "")
                     line_items = info.get("line_items", [])
                     
                     if total:
@@ -242,7 +272,8 @@ Devuelve un JSON con esta estructura:
                     
                     for line in line_items:
                         descripcion = line.get("descripcion", "") or "Servicio extraído"
-                        precio = line.get("precio_unitario", 0.0)
+                        # CORRECCIÓN DE LLAVE JSON
+                        precio = line.get("valor_total_linea", 0.0)
                         
                         servicio = self._obtener_mejor_coincidencia(descripcion)
                         servicio_id = servicio.id if servicio else False
@@ -348,7 +379,8 @@ Devuelve un JSON con esta estructura:
                                         cmds = [(5, 0, 0)]
                                         for line in line_items:
                                             descripcion = line.get("descripcion", "") or "Servicio extraído"
-                                            precio = line.get("precio_unitario", 0.0)
+                                            # CORRECCIÓN DE LLAVE JSON EN PLAN B
+                                            precio = line.get("valor_total_linea", 0.0)
                                             servicio = rec._obtener_mejor_coincidencia(descripcion)
                                             cmds.append((0, 0, {
                                                 'company_id': rec.company_id.id,
@@ -377,6 +409,13 @@ Devuelve un JSON con esta estructura:
                 self._validar_campos_para_autorizacion()
 
             return res
+
+    def action_confirm(self): 
+        res = super(ApprovalRequest, self).action_confirm() 
+        for rec in self: 
+            # Disparar automáticamente la IA al confirmar la solicitud 
+            rec.action_analizar_cotizaciones() 
+        return res 
 
     def action_approve(self):
         res = super().action_approve()

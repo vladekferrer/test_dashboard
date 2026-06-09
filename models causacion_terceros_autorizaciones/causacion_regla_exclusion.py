@@ -10,12 +10,11 @@ class CausacionReglaExclusion(models.Model):
     # Condiciones (Booleanos)
     filtro_regimen_simplificado = fields.Boolean(string='Aplica a Régimen Simplificado')
     filtro_regimen_simple = fields.Boolean(string='Aplica a Régimen Simple')
+    filtro_regimen_comun = fields.Boolean(string='Aplica a Régimen Común')
     filtro_autorretenedor = fields.Boolean(string='Aplica a Autorretenedor')
     
     # Acción
-    tipo_impuesto_a_excluir = fields.Selection([
-        ('iva', 'IVA'),
-        ('retefuente', 'Retefuente'),
-        ('reteica', 'ReteICA'),
-        ('reteiva', 'ReteIVA')
-    ], string='Tipo de Impuesto a Excluir', required=True)
+    impuestos_a_excluir_ids = fields.Many2many(
+        'l10n_co_cei.tax_type', 
+        string='Impuestos a Excluir'
+    )

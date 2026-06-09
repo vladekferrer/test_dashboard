@@ -374,16 +374,12 @@ Extrae la información del documento. Devuelve ESTRICTAMENTE un objeto JSON vál
 }
 
 REGLAS CRÍTICAS DE EXTRACCIÓN (CUMPLIMIENTO OBLIGATORIO Y ESTRICTO): 
-1. IDENTIDADES: EL NIT 800089872 (DISMEL) ES SIEMPRE EL CLIENTE. Prohibido usarlo como proveedor. 
-2. NÚMERO DE FACTURA Y CIUDAD: Usa el real. Si no hay consecutivo, combina primer nombre y fecha. La ciudad es donde se prestó el servicio. 
-3. REGLA DE ORO PARA TABLAS (FACTURAS FORMALES): 
-   - Si el documento tiene una tabla con múltiples conceptos: DEBES extraer CADA fila como un objeto separado en `line_items`. 
-   - ESTÁ TOTALMENTE PROHIBIDO poner el 'Total de la factura' dentro de un `valor_total_linea` individual. 
-   - El `valor_total_linea` DEBE ser exactamente el subtotal de esa fila (Precio Unitario x Cantidad). 
-   - IGNORA POR COMPLETO cualquier fila de la tabla que sea puramente un impuesto (ej. filas que digan "IVA Descontable", "IVA Mayor Valor Gasto", "Retención"). Solo extrae los servicios reales (ej. "Almacenamiento", "Alistamiento"). 
-4. REGLA PARA CUENTAS DE COBRO INFORMALES (SIN TABLA): 
-   - SOLO si es un documento informal en texto corrido sin desglose de precios individuales: Agrupa los servicios separados por comas en la descripción de UNA sola línea en `line_items`, y asigna el total global a esa línea. 
-5. TOTAL A PAGAR: El `total_a_pagar` general (fuera del arreglo) DEBE ser el monto final exacto que se debe transferir (incluyendo todos los impuestos). 
+1. (IDENTIDAD): EL NIT 800089872 (DISMEL) ES SIEMPRE EL CLIENTE. NUNCA los pongas como proveedor. El proveedor es la otra parte.
+2. (LÍNEAS DE DETALLE - OBLIGATORIO): 
+   - SI VES UNA TABLA O LISTADO: Extrae CADA fila o ítem cobrado como un elemento INDEPENDIENTE en el arreglo 'line_items'. No los agrupes. El `valor_total_linea` DEBE ser exactamente el subtotal de esa fila (Precio Unitario x Cantidad). ESTÁ TOTALMENTE PROHIBIDO poner el 'Total de la factura' dentro de un `valor_total_linea` individual. IGNORA POR COMPLETO cualquier fila de la tabla que sea puramente un impuesto (ej. filas que digan "IVA Descontable", "IVA Mayor Valor Gasto", "Retención").
+   - SOLO SI el documento es un texto informal continuo sin tabla: Crea UN ÚNICO elemento en 'line_items' resumiendo el servicio en máximo 10 palabras en 'descripcion' (PROHIBIDO copiar párrafos enteros). 
+3. NÚMERO DE FACTURA Y CIUDAD: Usa el real. Si no hay consecutivo, combina primer nombre y fecha. La ciudad es donde se prestó el servicio. 
+4. TOTAL A PAGAR: El `total_a_pagar` general (fuera del arreglo) DEBE ser el monto final exacto que se debe transferir (incluyendo todos los impuestos). Ignora anticipos. 
 """
 
                 # Ejecutar Petición 2
